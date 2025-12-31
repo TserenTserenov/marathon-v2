@@ -1,0 +1,38 @@
+name: Mirror upstream main -> fork main
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 */6 * * *"  # каждые 6 часов (UTC)
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirror-upstream-main
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout automation branch
+        uses: actions/checkout@v4
+        with:
+          ref: automation
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream main
+        run: |
+          git remote add upstream https://github.com/alexpoaiagent-sudo/marathon-v2.git || true
+          git fetch upstream main --prune
+
+      - name: Force update fork main to upstream/main
+        run: |
+          git checkout -B main upstream/main
+          git push origin main --force
