@@ -3,7 +3,7 @@ name: Mirror upstream main -> fork main
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: "0 */6 * * *"  # каждые 6 часов (UTC)
+    - cron: "0 */6 * * *"  # every 6 hours (UTC)
 
 permissions:
   contents: write
@@ -32,7 +32,26 @@ jobs:
           git remote add upstream https://github.com/alexpoaiagent-sudo/marathon-v2.git || true
           git fetch upstream main --prune
 
-      - name: Force update fork main to upstream/main
+      - name: Compare SHAs (skip push if up-to-date)
+        id: compare
         run: |
-          git checkout -B main upstream/main
-          git push origin main --force
+          UPSTREAM_SHA="$(git rev-parse upstream/main)"
+          ORIGIN_SHA="$(git rev-parse origin/main)"
+
+          echo "upstream_sha=$UPSTREAM_SHA" >> "$GITHUB_OUTPUT"
+          echo "origin_sha=$ORIGIN_SHA" >> "$GITHUB_OUTPUT"
+
+          if [ "$UPSTREAM_SHA" = "$ORIGIN_SHA" ]; then
+            echo "needs_push=false" >> "$GITHUB_OUTPUT"
+            echo "Already up-to-date. No push required." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "needs_push=true" >> "$GITHUB_OUTPUT"
+            echo "Updates found. Will mirror upstream/main to origin/main." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Mirror upstream/main -> origin/main (force)
+        if: steps.compare.outputs.needs_push == 'true'
+        run: |
+          # Push upstream/main directly into fork's main without checking out main locally
+          git push origin upstream/main:refs/heads/main --force
+          echo "Pushed upstream/main to origin/main." >> "$GITHUB_STEP_SUMMARY"
